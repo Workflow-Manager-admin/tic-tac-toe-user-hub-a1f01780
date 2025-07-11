@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .auth import router as auth_router
 from .game import router as game_router
+from .game_history import router as history_router
 
 app = FastAPI()
 
@@ -18,6 +19,8 @@ app.add_middleware(
 app.include_router(auth_router)
 # PUBLIC_INTERFACE
 app.include_router(game_router)
+# PUBLIC_INTERFACE
+app.include_router(history_router)
 
 @app.get("/")
 def health_check():

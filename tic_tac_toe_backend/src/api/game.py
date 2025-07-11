@@ -2,6 +2,9 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict
 
+# Import game history recorder
+from .game_history import record_completed_game
+
 # -- MVP IN-MEMORY USER/SESSION STATE STORAGE --
 # For MVP, we use username (from JWT) as session key. This is NOT persistent!
 games: Dict[str, "TicTacToeGame"] = {}
@@ -130,6 +133,25 @@ def make_move(request: Request, move: MoveRequest):
         game.make_move(username, move.row, move.col)
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
+    # If game finished, log game history (avoid double-recording)
+    if game.finished and game.winner is not None:
+        if game.winner == username:
+            outcome = "win"
+            opponent = game.player_o if game.player_x == username else game.player_x
+        else:
+            outcome = "loss"
+            opponent = game.player_o if game.player_x == username else game.player_x
+        record_completed_game(username, opponent, game.board, outcome)
+        # Also record for the opponent if not CPU
+        if opponent and opponent != "cpu":
+            rev_outcome = "loss" if outcome == "win" else "win"
+            record_completed_game(opponent, username, game.board, rev_outcome)
+    elif game.finished and game.winner is None:
+        # Draw
+        opponent = game.player_o if game.player_x == username else game.player_x
+        record_completed_game(username, opponent, game.board, "draw")
+        if opponent and opponent != "cpu":
+            record_completed_game(opponent, username, game.board, "draw")
     return game.to_dict()
 
 # PUBLIC_INTERFACE
@@ -140,5 +162,24 @@ def reset_game(request: Request):
     if username not in games:
         games[username] = TicTacToeGame(player_x=username)
     else:
+        # Before reset, if game was finished, record it
+        prev_game = games[username]
+        if prev_game.finished:
+            if prev_game.winner is not None:
+                if prev_game.winner == username:
+                    outcome = "win"
+                    opponent = prev_game.player_o if prev_game.player_x == username else prev_game.player_x
+                else:
+                    outcome = "loss"
+                    opponent = prev_game.player_o if prev_game.player_x == username else prev_game.player_x
+                record_completed_game(username, opponent, prev_game.board, outcome)
+                if opponent and opponent != "cpu":
+                    rev_outcome = "loss" if outcome == "win" else "win"
+                    record_completed_game(opponent, username, prev_game.board, rev_outcome)
+            else:
+                opponent = prev_game.player_o if prev_game.player_x == username else prev_game.player_x
+                record_completed_game(username, opponent, prev_game.board, "draw")
+                if opponent and opponent != "cpu":
+                    record_completed_game(opponent, username, prev_game.board, "draw")
         games[username].reset()
     return games[username].to_dict()
