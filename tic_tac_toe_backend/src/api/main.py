@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from .auth import router as auth_router
+
 app = FastAPI()
 
 app.add_middleware(
@@ -11,6 +13,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# PUBLIC_INTERFACE
+app.include_router(auth_router)
+
 @app.get("/")
 def health_check():
+    """Health check endpoint for API."""
     return {"message": "Healthy"}
